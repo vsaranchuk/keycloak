@@ -12,11 +12,25 @@ import org.apache.commons.lang3.StringUtils;
 
 import org.keycloak.common.util.DurationConverter;
 
+/**
+ * Temporarily overrides {@code socketTimeout} during MySQL/TiDB connection creation to prevent threads
+ * from hanging indefinitely, since {@code loginTimeout} does not cover the full creation phase. During a
+ * failover, this causes connection creation to hang, exhausting the pool and blocking all DB operations.
+ * The original {@code socketTimeout} is restored after the connection is created.
+ * <br>
+ * <br>
+ * Once the connection is created, the overridden {@code socketTimeout} is restored to its original value
+ * by {@link org.keycloak.quarkus.runtime.configuration.UpdateSocketTimeoutOnConnectionCreationInterceptor}.
+ *
+ * @see <a href="https://github.com/keycloak/keycloak/issues/42256">DB Connection Pool acquisition timeout errors on database failover</a>
+ * @see <a href="https://github.com/keycloak/keycloak/issues/47174">MySQL/TiDB: Configure DB socket timeouts on the fly during connection creation phase</a>
+ * @see <a href="https://github.com/keycloak/keycloak/issues/47140">Add CLI option for database connection timeout and provide it into quarkus.datasource.jdbc.login-timeout</a>
+ */
 @Priority(Priorities.PLATFORM - 10)
 public class JdbcUrlInterceptor extends SocketTimeoutInterceptor implements ConfigSourceInterceptor {
 
     public static final String QUARKUS_JDBC_URL = "quarkus.datasource.jdbc.url";
-    public static final String KC_BC_URL = "kc.db-url";
+    public static final String KC_DB_URL = "kc.db-url";
 
     @Override
     public ConfigValue getValue(ConfigSourceInterceptorContext context, String name) {
@@ -67,7 +81,7 @@ public class JdbcUrlInterceptor extends SocketTimeoutInterceptor implements Conf
     private boolean isAllowed(String propertyName) {
         boolean stateCondition = isSupported && isInitialized;
         boolean propertyCondition =
-                propertyName.equals(QUARKUS_JDBC_URL) || propertyName.equals(KC_BC_URL);
+                propertyName.equals(QUARKUS_JDBC_URL) || propertyName.equals(KC_DB_URL);
 
         return stateCondition && propertyCondition;
     }

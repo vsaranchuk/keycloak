@@ -306,6 +306,10 @@ public abstract class AbstractOAuthClient<T> {
         return client();
     }
 
+    public WebDriver getDriver() {
+        return driver;
+    }
+
     public HttpClientManager httpClient() {
         return httpClientManager;
     }
@@ -316,6 +320,10 @@ public abstract class AbstractOAuthClient<T> {
 
     public Endpoints getEndpoints() {
         return new Endpoints(baseUrl, config.getRealm());
+    }
+
+    public String getBaseUrl() {
+        return baseUrl;
     }
 
     public String getRealm() {

@@ -10,13 +10,16 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 /**
- * Temporarily overrides {@code socketTimeout} during MySQL/TiDB connection creation to prevent threads
- * from hanging indefinitely, since {@code loginTimeout} does not cover the full creation phase. During a
- * failover, this causes connection creation to hang, exhausting the pool and blocking all DB operations.
- * The original {@code socketTimeout} is restored after the connection is created.
+ * Restores the {@code socketTimeout} of a MySQL/TiDB connection to its original value after the connection
+ * has been successfully created. During connection creation, {@code socketTimeout} is temporarily overridden
+ * with a tighter value to prevent the creation thread from hanging indefinitely.
+ * <p>
+ * See {@link org.keycloak.quarkus.runtime.configuration.JdbcUrlInterceptor} for the logic responsible
+ * for overriding the {@code socketTimeout} during the connection creation phase.
  *
  * @see <a href="https://github.com/keycloak/keycloak/issues/42256">DB Connection Pool acquisition timeout errors on database failover</a>
  * @see <a href="https://github.com/keycloak/keycloak/issues/47174">MySQL/TiDB: Configure DB socket timeouts on the fly during connection creation phase</a>
+ * @see <a href="https://github.com/keycloak/keycloak/issues/47140">Add CLI option for database connection timeout and provide it into quarkus.datasource.jdbc.login-timeout</a>
  */
 public class UpdateSocketTimeoutOnConnectionCreationInterceptor extends SocketTimeoutInterceptor implements AgroalPoolInterceptor {
 

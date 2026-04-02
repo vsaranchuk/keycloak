@@ -35,28 +35,31 @@ public final class GroupCoreModelSchema extends AbstractModelSchema<GroupModel, 
 
     @Override
     protected Set<String> getModelAttributeNames() {
-        return Set.of("name");
+        return Set.of("name", "externalId");
     }
 
     @Override
     protected String getAttributeValue(GroupModel model, String name) {
-        if (name.equals("name")) {
-            return model.getName();
-        }
-        return null;
+        return switch (name) {
+            case "name" -> model.getName();
+            case "externalId" -> model.getFirstAttribute("externalId");
+            default -> null;
+        };
     }
 
     @Override
     protected String getAttributeSchemaName(String name) {
-        if (name.equals("name")) {
-            return "displayName";
-        }
-        return null;
+        return switch (name) {
+            case "name" -> "displayName";
+            case "externalId" -> name;
+            default -> null;
+        };
     }
 
     @Override
     protected Map<String, Attribute<GroupModel, Group>> doGetAttributes() {
         List<Attribute<GroupModel, Group>> attributes = new ArrayList<>(Attribute.<GroupModel, Group>simple("displayName")
+                    .notCaseExact()
                     .modelAttributeResolver((attribute) -> {
                         if (attribute.getName().equals("displayName")) {
                             return "name";
@@ -65,6 +68,11 @@ public final class GroupCoreModelSchema extends AbstractModelSchema<GroupModel, 
                     })
                     .withModelSetter(GroupModel::setName)
                     .build());
+        attributes.addAll(Attribute.<GroupModel, Group>simple("externalId")
+                .immutable()
+                .string()
+                .withModelSetter(GroupModel::setSingleAttribute)
+                .build());
         attributes.addAll(Attribute.<GroupModel, Group>simple("meta.created")
                 .timestamp()
                 .immutable()
@@ -80,6 +88,16 @@ public final class GroupCoreModelSchema extends AbstractModelSchema<GroupModel, 
     @Override
     public void populate(Group resource, GroupModel model) {
         super.populate(resource, model);
+        setTimestamps(resource, model);
+    }
+
+    @Override
+    public void populate(Group resource, GroupModel model, List<String> requestedAttributes, List<String> excludedAttributes) {
+        super.populate(resource, model, requestedAttributes, excludedAttributes);
+        setTimestamps(resource, model);
+    }
+
+    private void setTimestamps(Group resource, GroupModel model) {
         Long createdTimestamp = model.getCreatedTimestamp();
         if (createdTimestamp != null) {
             resource.setCreatedTimestamp(createdTimestamp);

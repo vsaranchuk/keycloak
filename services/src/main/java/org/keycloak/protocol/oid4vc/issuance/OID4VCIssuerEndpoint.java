@@ -136,6 +136,8 @@ import static org.keycloak.OID4VCConstants.OPENID_CREDENTIAL;
 import static org.keycloak.constants.OID4VCIConstants.OID4VC_PROTOCOL;
 import static org.keycloak.protocol.oid4vc.issuance.OID4VCIssuerWellKnownProvider.getSupportedCredentials;
 import static org.keycloak.protocol.oid4vc.model.AuthorizationCodeGrant.AUTH_CODE_GRANT_TYPE;
+import static org.keycloak.protocol.oid4vc.model.ErrorType.INVALID_NONCE;
+import static org.keycloak.protocol.oid4vc.model.ErrorType.INVALID_PROOF;
 import static org.keycloak.protocol.oid4vc.model.PreAuthorizedCodeGrant.PRE_AUTH_GRANT_TYPE;
 
 /**
@@ -939,6 +941,8 @@ public class OID4VCIssuerEndpoint {
         SupportedCredentialConfiguration supportedCredential =
                 OID4VCIssuerWellKnownProvider.toSupportedCredentialConfiguration(session, authorizedCredentialScope);
 
+        enforceProofContractForCredential(supportedCredential, credentialRequest.getProofs());
+
         // Get the list of all proofs (handles single proof, multiple proofs, or none)
         List<String> allProofs = getAllProofs(credentialRequest);
 
@@ -956,8 +960,7 @@ public class OID4VCIssuerEndpoint {
             String proofType = originalProofs != null ? originalProofs.getProofType() : null;
 
             for (String currentProof : allProofs) {
-                Proofs proofForIteration = new Proofs();
-                proofForIteration.setProofByType(proofType, currentProof);
+                Proofs proofForIteration = Proofs.create(proofType, currentProof);
                 // Creating credential with keybinding to the current proof
                 credentialRequest.setProofs(proofForIteration);
                 Object theCredential = getCredential(authResult, supportedCredential, tokenAuthDetail, credentialRequest, eventBuilder);
@@ -1250,6 +1253,26 @@ public class OID4VCIssuerEndpoint {
         return proofs.getAllProofs();
     }
 
+    private void enforceProofContractForCredential(SupportedCredentialConfiguration credentialConfiguration, Proofs proofs) {
+        boolean proofConfigured = credentialConfiguration != null
+                && credentialConfiguration.getProofTypesSupported() != null
+                && credentialConfiguration.getProofTypesSupported().getSupportedProofTypes() != null
+                && !credentialConfiguration.getProofTypesSupported().getSupportedProofTypes().isEmpty();
+        boolean proofProvided = proofs != null && !proofs.getPresentProofTypes().isEmpty();
+
+        if (proofConfigured && !proofProvided) {
+            String message = "The 'proofs' parameter is required for this credential configuration.";
+            LOGGER.debug(message);
+            throw new BadRequestException(getErrorResponse(ErrorType.INVALID_PROOF, message));
+        }
+
+        if (!proofConfigured && proofProvided) {
+            String message = "The 'proofs' parameter is not supported for this credential configuration.";
+            LOGGER.debug(message);
+            throw new BadRequestException(getErrorResponse(ErrorType.INVALID_PROOF, message));
+        }
+    }
+
     private void validateProofTypes(Proofs proofs) {
         if (proofs == null) {
             return;
@@ -1260,7 +1283,7 @@ public class OID4VCIssuerEndpoint {
 
         if (hasJwtProofs && hasAttestationProofs) {
             LOGGER.debug("The 'proofs' object must not contain multiple proof types.");
-            throw new BadRequestException(getErrorResponse(ErrorType.INVALID_PROOF,
+            throw new BadRequestException(getErrorResponse(INVALID_PROOF,
                     "The 'proofs' object must not contain multiple proof types."));
         }
     }
@@ -1651,14 +1674,14 @@ public class OID4VCIssuerEndpoint {
                 vcIssuanceContext.getCredentialBody().addKeyBinding(jwks.get(0));
             }
         } catch (VCIssuerException e) {
-            if (e.getErrorType() == ErrorType.INVALID_NONCE) {
-                throw new ErrorResponseException(
-                        ErrorType.INVALID_NONCE.getValue(),
-                        "The proofs parameter in the Credential Request uses an invalid nonce",
-                        Response.Status.BAD_REQUEST
-                );
+            switch (e.getErrorType()) {
+                case INVALID_NONCE:
+                    throw new ErrorResponseException(INVALID_NONCE.getValue(), e.getMessage(), Response.Status.BAD_REQUEST);
+                case INVALID_PROOF:
+                    throw new ErrorResponseException(INVALID_PROOF.getValue(), e.getMessage(), Response.Status.BAD_REQUEST);
+                default:
+                    throw new BadRequestException("Could not validate provided proof", e);
             }
-            throw new BadRequestException("Could not validate provided proof", e);
         }
     }
 
