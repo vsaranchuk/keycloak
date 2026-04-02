@@ -45,6 +45,13 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.logging.Handler;
 
+import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
+
+import io.quarkus.arc.processor.BuiltinScope;
+import io.quarkus.deployment.Capabilities;
+
+import io.quarkus.deployment.Capability;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.PersistenceUnitTransactionType;
 
@@ -84,6 +91,7 @@ import org.keycloak.provider.ProviderManager;
 import org.keycloak.provider.Spi;
 import org.keycloak.quarkus.runtime.Environment;
 import org.keycloak.quarkus.runtime.KeycloakRecorder;
+import org.keycloak.quarkus.runtime.configuration.UpdateSocketTimeoutOnConnectionCreationInterceptor;
 import org.keycloak.quarkus.runtime.cli.Picocli;
 import org.keycloak.quarkus.runtime.configuration.Configuration;
 import org.keycloak.quarkus.runtime.configuration.KeycloakConfigSourceProvider;
@@ -436,6 +444,18 @@ class KeycloakProcessor {
         if (!notSetPersistenceUnitsDBKinds.isEmpty()) {
             throwConfigError("Detected additional named datasources without a DB kind set, please specify: %s".formatted(String.join(",", notSetPersistenceUnitsDBKinds)));
         }
+    }
+
+    @BuildStep
+    void configureAgroalConnection(BuildProducer<AdditionalBeanBuildItem> additionalBeans,
+                                   Capabilities capabilities) {
+        if (capabilities.isPresent(Capability.AGROAL)) {
+            additionalBeans.produce(new AdditionalBeanBuildItem.Builder().addBeanClass(UpdateSocketTimeoutOnConnectionCreationInterceptor.class)
+                    .setDefaultScope(BuiltinScope.APPLICATION.getName())
+                    .setUnremovable()
+                    .build());
+        }
+
     }
 
     /**
