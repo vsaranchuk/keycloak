@@ -38,11 +38,11 @@ import static org.hamcrest.Matchers.startsWith;
 @KeycloakIntegrationTest(config = KcAdmV2ClientCLITest.V2ApiServerConfig.class)
 public class KcAdmV2ClientCLITest {
 
-    @InjectKeycloakUrls
-    KeycloakUrls keycloakUrls;
-
     @InjectRealm
     ManagedRealm realm;
+
+    @InjectKeycloakUrls
+    KeycloakUrls keycloakUrls;
 
     @TempDir
     static File tempDir;
@@ -69,8 +69,10 @@ public class KcAdmV2ClientCLITest {
         CommandResult result = kcAdmV2Cmd("client", "create", "oidc");
 
         assertThat("create without clientId should fail", result.exitCode(), is(not(0)));
-        assertThat("error should clarify that provided data are invalid: " + result.err(),
-                result.err().toLowerCase(), containsString("invalid"));
+        assertThat("error should clarify that provided data are invalid: ", result.err(), is("""
+                Provided data is invalid:
+                	- clientId: must not be blank
+                """));
     }
 
     @Test
@@ -407,7 +409,7 @@ public class KcAdmV2ClientCLITest {
         assertThat("should fail without server", result.exitCode(), is(not(0)));
         assertThat(result.err(), containsString("No server URL configured"));
         assertThat("error hint should include --v2",
-                result.err(), containsString("kcadm.sh --v2 config credentials"));
+                result.err(), containsString(KcAdmMain.CMD + " --v2 config credentials"));
     }
 
     @Test
@@ -530,7 +532,10 @@ public class KcAdmV2ClientCLITest {
 
         CommandResult result = kcAdmV2Cmd("client", "update", "oidc", "some-id", "-f", jsonFile.toString());
         assertThat("PUT without clientId should fail", result.exitCode(), is(not(0)));
-        assertThat(result.err(), containsString("does not match"));
+        assertThat(result.err(), is("""
+                Provided data is invalid:
+                	- clientId: must not be blank
+                """));
     }
 
     @Test
